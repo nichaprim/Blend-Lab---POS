@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Delivery POS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#F3F5F4;--card:#fff;--ink:#14211C;--mut:#4F5F58;--line:#DCE3DF;--pri:#0B6B52;--onpri:#fff;--w:#8A4B08;--wb:#FDEFD9;--i:#14518A;--ib:#E3EEF9;--o:#0B6B52;--ob:#E4F3EC;--track:#E4EAE7;--err:#B3261E;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1512;--card:#17211D;--ink:#EAF1ED;--mut:#A3B3AB;--line:#2A3832;--pri:#3FB38E;--onpri:#06251B;--w:#F2B66B;--wb:#3A2A12;--i:#8CC1F2;--ib:#16283A;--o:#6FD4B0;--ob:#12302A;--track:#26332D;--err:#F2B8B5}}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',system-ui,sans-serif;font-size:14px}
+#app{max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column}
+header{padding:16px;background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{margin:0;font-size:20px;font-weight:800}h2{margin:0;font-size:15px}
+main{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px}
+.b,.b2{min-height:44px;padding:0 18px;border-radius:10px;font:600 14px 'Noto Sans Thai',sans-serif;cursor:pointer;border:1.5px solid var(--pri)}
+.b{background:var(--pri);color:var(--onpri)}.b2{background:var(--card);color:var(--pri)}.b:disabled{opacity:.5}
+.in{min-height:44px;box-sizing:border-box;width:100%;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:0 12px;font:14px 'Noto Sans Thai',sans-serif}
+.pill{padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:14px 'Noto Sans Thai',sans-serif;min-height:40px;cursor:pointer;white-space:nowrap}
+.pill.on{background:var(--ink);color:var(--bg);font-weight:600}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:left;color:var(--ink);font:14px 'Noto Sans Thai',sans-serif;display:flex;flex-direction:column;gap:4px}
+.item.on{border:2px solid var(--pri)}.item:disabled{opacity:.45}
+nav{display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 8px}
+nav button{flex:1;min-height:48px;background:none;border:0;color:var(--mut);font:12px 'Noto Sans Thai',sans-serif;cursor:pointer}
+nav button.on{color:var(--pri);font-weight:800}
+.mut{color:var(--mut);font-size:13px}.err{color:var(--err);font-size:13px}
+.bar{height:10px;border-radius:5px;background:var(--track);margin-top:4px}.bar i{display:block;height:10px;border-radius:5px;background:var(--pri)}
+label{font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import{getFirestore,collection,doc,addDoc,setDoc,updateDoc,deleteDoc,onSnapshot,query,where,orderBy}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ===== วางค่าจาก Firebase Console ตรงนี้ (Project settings > Your apps > Web app) =====
+const firebaseConfig={apiKey:"AIzaSyAGBz1hM_6WVjnfZL2O7Z8WCGCrG7b-5aQ",authDomain:"blend-lab-pos.firebaseapp.com",projectId:"blend-lab-pos",appId:"1:77199696681:web:529113fe0a318aa4fe0d38"};
+// ======================================================================================
+
+const CH={line:'LINE MAN',grab:'Grab',direct:'โทร / LINE ร้าน'},CC={line:['--wb','--w'],grab:['--ob','--o'],direct:['--ib','--i']};
+const ST={new:'ใหม่',cook:'กำลังทำ',ready:'รอไรเดอร์',done:'เสร็จแล้ว',cancel:'ยกเลิก'},NX={new:['cook','รับออเดอร์'],cook:['ready','พร้อมส่ง'],ready:['done','ไรเดอร์รับแล้ว']};
+const PER={today:'วันนี้',month:'เดือนนี้',last:'เดือนที่แล้ว'};
+const E=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),B=n=>'฿'+Math.round(n).toLocaleString('th-TH');
+const food=o=>o.items.reduce((s,i)=>s+i.q*i.p,0),tot=o=>food(o)+o.ship,comm=o=>food(o)*(o.fee||0)/100;
+const mm=t=>{const s=Math.max(0,Math.floor((Date.now()-t)/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+const rng=p=>{const n=new Date(),y=n.getFullYear(),m=n.getMonth();return p==='today'?[new Date(y,m,n.getDate()).getTime(),Infinity]:p==='month'?[new Date(y,m,1).getTime(),Infinity]:[new Date(y,m-1,1).getTime(),new Date(y,m,1).getTime()]};
+const S={tab:'orders',f:'new',per:'today',user:null,ready:false,err:'',orders:[],menu:[],set:{name:'ร้านของฉัน',open:true,ship:25,fees:{line:30,grab:30}},d:{ch:'direct',phone:'',addr:'',note:'',cart:{}}};
+const ok=!firebaseConfig.apiKey.startsWith('วาง');
+let fb={},unsubs=[],pending=0;
+if(ok){const app=initializeApp(firebaseConfig);fb.auth=getAuth(app);fb.db=getFirestore(app)}
+const D=(c,id)=>doc(fb.db,c,id);
+
+const V={
+login(){return `<main><div class="card"><h2>เข้าสู่ระบบร้าน</h2><label for="em">อีเมล</label><input id="em" class="in" type="email" autocomplete="username"><label for="pw">รหัสผ่าน</label><input id="pw" class="in" type="password" autocomplete="current-password">${S.err?`<div class="err" role="alert">${E(S.err)}</div>`:''}<button class="b" data-a="login">เข้าสู่ระบบ</button></div></main>`},
+orders(){const t0=rng('today')[0],L=S.orders.filter(o=>o.st===S.f&&(S.f!=='done'||o.t>=t0)).sort((a,b)=>S.f==='done'?b.t-a.t:a.t-b.t);
+return `<div class="tabs">${['new','cook','ready','done'].map(k=>`<button class="pill ${S.f===k?'on':''}" data-a="f" data-v="${k}">${ST[k]} ${S.orders.filter(o=>o.st===k&&(k!=='done'||o.t>=t0)).length}</button>`).join('')}</div>`+
+(L.length?L.map(o=>`<div class="card"><div class="row"><b style="font-size:16px">#A${o.no} · <span data-t="${o.t}">${mm(o.t)}</span></b><span class="chip" style="background:var(${CC[o.ch][0]});color:var(${CC[o.ch][1]})">${CH[o.ch]}</span></div>
+<div>${o.items.map(i=>`${E(i.n)} ×${i.q}`).join(', ')}</div>${o.note?`<div class="mut">หมายเหตุ: ${E(o.note)}</div>`:''}${o.addr?`<div class="mut">ส่งที่: ${E(o.addr)}${o.phone?' · '+E(o.phone):''}</div>`:''}
+<div class="row"><b>${B(tot(o))}${o.ship?` <span class="mut">(รวมส่ง ${B(o.ship)})</span>`:''}</b><span style="display:flex;gap:8px">${o.st==='new'?`<button class="b2" data-a="cancel" data-v="${o.id}">ยกเลิก</button>`:''}${NX[o.st]?`<button class="b" data-a="st" data-v="${o.id}">${NX[o.st][1]}</button>`:''}</span></div></div>`).join(''):`<div class="card mut">ไม่มีออเดอร์ในสถานะนี้</div>`)},
+new(){const d=S.d,ship=d.ch==='direct'?S.set.ship:0,items=S.menu.filter(m=>d.cart[m.id]),fd=items.reduce((s,m)=>s+m.p*d.cart[m.id],0);
+return `<div class="tabs">${Object.keys(CH).map(k=>`<button class="pill ${d.ch===k?'on':''}" data-a="ch" data-v="${k}">${CH[k]}</button>`).join('')}</div>
+<label for="ph">เบอร์ลูกค้า</label><input id="ph" class="in" inputmode="tel" data-i="phone" value="${E(d.phone)}"><div id="hint" class="mut"></div>
+<label for="ad">ที่อยู่</label><input id="ad" class="in" data-i="addr" value="${E(d.addr)}"><input class="in" aria-label="หมายเหตุออเดอร์" placeholder="หมายเหตุ เช่น ไม่เผ็ด" data-i="note" value="${E(d.note)}">
+${S.menu.length?'':'<div class="card mut">ยังไม่มีเมนู เพิ่มได้ที่แท็บ "เมนู"</div>'}
+<div class="grid">${S.menu.map(m=>{const q=d.cart[m.id]||0;return `<button class="item ${q?'on':''}" data-a="inc" data-v="${m.id}" ${m.a?'':'disabled'}><b>${E(m.n)}</b><span class="mut">${B(m.p)}${m.a?'':' · หมด'}</span><span style="color:var(--pri);font-weight:800">${q?'×'+q:'+ เพิ่ม'}</span></button>`}).join('')}</div>
+${items.length?`<button class="b2" data-a="dec">ลบรายการล่าสุด</button>`:''}
+<div class="card"><div class="row"><span>อาหาร ${B(fd)} · ค่าส่ง ${B(ship)}</span><b style="font-size:18px">${B(fd+ship)}</b></div><button class="b" data-a="submit" ${items.length?'':'disabled'}>ยืนยันและส่งเข้าครัว</button></div>`},
+menu(){return S.menu.map(m=>`<div class="card"><div class="row"><b>${E(m.n)}</b><button class="pill ${m.a?'on':''}" data-a="tog" data-v="${m.id}" aria-pressed="${!!m.a}">${m.a?'มีขาย':'หมด'}</button></div><div class="row"><label for="p${m.id}">ราคา (฿)</label><input id="p${m.id}" class="in" style="width:110px" type="number" min="0" data-i="price" data-v="${m.id}" value="${m.p}"><button class="b2" data-a="del" data-v="${m.id}" aria-label="ลบ ${E(m.n)}">ลบ</button></div></div>`).join('')+
+`<div class="card"><h2>เพิ่มเมนู</h2><input id="nn" class="in" placeholder="ชื่อเมนู" aria-label="ชื่อเมนู"><input id="np" class="in" type="number" min="0" placeholder="ราคา" aria-label="ราคา"><button class="b" data-a="add">เพิ่มเมนู</button></div>`},
+sum(){const[a,z]=rng(S.per),O=S.orders.filter(o=>o.t>=a&&o.t<z&&o.st!=='cancel'),by={line:0,grab:0,direct:0},mn={},day={};let net=0,cm=0;
+O.forEach(o=>{const c=comm(o),n=tot(o)-c;net+=n;cm+=c;by[o.ch]+=n;o.items.forEach(i=>mn[i.n]=(mn[i.n]||0)+i.q);const k=new Date(o.t).toLocaleDateString('th-TH');(day[k]=day[k]||{n:0,s:0,t:o.t});day[k].n++;day[k].s+=n});
+const top=Object.entries(mn).sort((x,y)=>y[1]-x[1]).slice(0,5),days=Object.entries(day).sort((x,y)=>y[1].t-x[1].t);
+return `<div class="tabs">${Object.keys(PER).map(k=>`<button class="pill ${S.per===k?'on':''}" data-a="per" data-v="${k}">${PER[k]}</button>`).join('')}</div>
+<div class="card" style="background:#14211C;color:#fff;border-color:#14211C"><span style="opacity:.8">ยอดสุทธิ${PER[S.per]} (ประมาณการ)</span><b style="font-size:32px">${B(net)}</b><span style="opacity:.8">${O.length} ออเดอร์ · ค่าคอมฯ ${B(cm)}</span></div>
+<div class="card"><h2>ตามช่องทาง</h2>${Object.keys(CH).map(k=>`<div>${CH[k]} · ${B(by[k])}<div class="bar"><i style="width:${net?by[k]/net*100:0}%"></i></div></div>`).join('')}</div>
+<div class="card"><h2>เมนูขายดี</h2>${top.length?top.map((t,i)=>`<span>${i+1}. ${E(t[0])} · ${t[1]}</span>`).join(''):'<span class="mut">ยังไม่มีข้อมูล</span>'}</div>
+${S.per!=='today'?`<div class="card"><h2>สรุปรายวัน</h2>${days.map(([k,v])=>`<div class="row"><span>${k} · ${v.n} ออเดอร์</span><b>${B(v.s)}</b></div>`).join('')||'<span class="mut">ยังไม่มีข้อมูล</span>'}</div>`:''}
+<button class="b2" data-a="csv" ${O.length?'':'disabled'}>ดาวน์โหลดรายงาน CSV (${PER[S.per]})</button>`},
+set(){return `<div class="card"><label for="sn">ชื่อร้าน</label><input id="sn" class="in" data-i="name" value="${E(S.set.name)}"><label for="sf">ค่าส่งที่ร้านเก็บเอง (฿)</label><input id="sf" class="in" type="number" min="0" data-i="ship" value="${S.set.ship}"></div>
+<div class="card"><h2>ค่าคอมมิชชัน (%)</h2>${['line','grab'].map(k=>`<div class="row"><label for="f${k}">${CH[k]}</label><input id="f${k}" class="in" style="width:100px" type="number" min="0" max="100" data-i="fee" data-v="${k}" value="${S.set.fees[k]}"></div>`).join('')}<span class="mut">ใส่ตามสัญญาจริง คิดจากค่าอาหารเท่านั้น ออเดอร์เก่าใช้อัตราเดิมที่บันทึกไว้ตอนสั่ง</span></div>
+<div class="card mut">เข้าสู่ระบบเป็น ${E(S.user?.email||'')}</div><button class="b2" data-a="logout">ออกจากระบบ</button>`}};
+const TT={orders:'ออเดอร์',new:'ออเดอร์ใหม่',menu:'เมนู',sum:'สรุปยอด',set:'ตั้งค่า'};
+function R(){const t=S.tab,app=document.getElementById('app');
+if(!ok){app.innerHTML=`<main><div class="card"><h2>ยังไม่ได้ตั้งค่า Firebase</h2><span class="mut">เปิดไฟล์ index.html แล้ววางค่า firebaseConfig ตามขั้นตอนในคู่มือ</span></div></main>`;return}
+if(!S.user){app.innerHTML=`<header><h1>Delivery POS</h1></header>${S.ready?V.login():'<main><div class="mut">กำลังโหลด...</div></main>'}`;return}
+app.innerHTML=`<header><div><h1>${t==='orders'?E(S.set.name):TT[t]}</h1><div class="mut">${t==='orders'?`รับออเดอร์เดลิเวอรี: ${S.set.open?'เปิดอยู่':'ปิดอยู่'}`:E(S.set.name)}</div></div>
+${t==='orders'?`<span style="display:flex;gap:8px"><button class="b2" data-a="open" aria-pressed="${S.set.open}">${S.set.open?'ปิดรับ':'เปิดรับ'}</button><button class="b" data-a="newo">+ ออเดอร์</button></span>`:''}${t==='new'?`<button class="b2" data-a="tab" data-v="orders">ยกเลิก</button>`:''}</header>
+<main>${V[t]()}</main><nav>${[['orders','ออเดอร์'],['menu','เมนู'],['sum','สรุปยอด'],['set','ตั้งค่า']].map(x=>`<button class="${t===x[0]||(t==='new'&&x[0]==='orders')?'on':''}" data-a="tab" data-v="${x[0]}">${x[1]}</button>`).join('')}</nav>`}
+const RR=()=>{if(document.activeElement?.matches('input')){pending=1;return}R()};
+document.addEventListener('focusout',()=>{if(pending)setTimeout(()=>{if(!document.activeElement?.matches('input')){pending=0;R()}},400)});
+
+function start(){const st=rng('last')[0];
+unsubs=[onSnapshot(query(collection(fb.db,'orders'),where('t','>=',st),orderBy('t','desc')),s=>{S.orders=s.docs.map(x=>({...x.data(),id:x.id}));RR()},e=>{S.err=e.message;RR()}),
+onSnapshot(collection(fb.db,'menu'),s=>{S.menu=s.docs.map(x=>({...x.data(),id:x.id})).sort((a,b)=>(a.o||0)-(b.o||0));RR()}),
+onSnapshot(D('settings','main'),s=>{if(s.exists())S.set={...S.set,...s.data(),fees:{...S.set.fees,...(s.data().fees||{})}};RR()})]}
+if(ok)onAuthStateChanged(fb.auth,u=>{S.user=u;S.ready=true;unsubs.forEach(f=>f());unsubs=[];if(u)start();R()});
+
+document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a,v=el.dataset.v,d=S.d;
+try{
+if(a==='login'){S.err='';el.disabled=true;try{await signInWithEmailAndPassword(fb.auth,document.getElementById('em').value.trim(),document.getElementById('pw').value)}catch(x){S.err='อีเมลหรือรหัสผ่านไม่ถูกต้อง';R()}return}
+if(a==='logout'){await signOut(fb.auth);return}
+if(a==='tab')S.tab=v;else if(a==='f')S.f=v;else if(a==='per')S.per=v;else if(a==='newo')S.tab='new';
+else if(a==='ch')d.ch=v;else if(a==='inc')d.cart[v]=(d.cart[v]||0)+1;
+else if(a==='dec'){const k=Object.keys(d.cart).pop();if(k){d.cart[k]--;if(d.cart[k]<=0)delete d.cart[k]}}
+else if(a==='open')await setDoc(D('settings','main'),{open:!S.set.open},{merge:true});
+else if(a==='tog')await updateDoc(D('menu',v),{a:S.menu.find(x=>x.id===v).a?0:1});
+else if(a==='del'){if(confirm('ลบเมนูนี้?'))await deleteDoc(D('menu',v))}
+else if(a==='add'){const n=document.getElementById('nn').value.trim(),p=+document.getElementById('np').value;if(!n||!(p>=0))return;await addDoc(collection(fb.db,'menu'),{n,p,a:1,o:Date.now()})}
+else if(a==='st')await updateDoc(D('orders',v),{st:NX[S.orders.find(x=>x.id===v).st][0]});
+else if(a==='cancel'){if(confirm('ยกเลิกออเดอร์นี้?'))await updateDoc(D('orders',v),{st:'cancel'})}
+else if(a==='submit'){const items=S.menu.filter(m=>d.cart[m.id]).map(m=>({n:m.n,q:d.cart[m.id],p:m.p}));if(!items.length)return;el.disabled=true;
+const no=S.orders.reduce((m,o)=>Math.max(m,o.no||0),100)+1;
+await addDoc(collection(fb.db,'orders'),{no,ch:d.ch,items,note:d.note,phone:d.phone,addr:d.addr,ship:d.ch==='direct'?S.set.ship:0,fee:d.ch==='direct'?0:S.set.fees[d.ch],st:'new',t:Date.now()});
+S.d={ch:'direct',phone:'',addr:'',note:'',cart:{}};S.tab='orders';S.f='new'}
+else if(a==='csv'){const[x,z]=rng(S.per),rows=[['เลขที่','เวลา','ช่องทาง','รายการ','ค่าอาหาร','ค่าส่ง','ค่าคอมฯ','สุทธิ','สถานะ']];
+S.orders.filter(o=>o.t>=x&&o.t<z).sort((p,q)=>p.t-q.t).forEach(o=>{const c=comm(o);rows.push(['A'+o.no,new Date(o.t).toLocaleString('th-TH'),CH[o.ch],o.items.map(i=>i.n+' x'+i.q).join(' / '),food(o),o.ship,c,tot(o)-c,ST[o.st]])});
+const csv='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'),l=document.createElement('a');
+l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));l.download='report-'+S.per+'.csv';l.click();return}
+}catch(x){alert('บันทึกไม่สำเร็จ: '+x.message)}
+R()});
+document.addEventListener('change',async e=>{const el=e.target.closest('[data-i]');if(!el)return;const i=el.dataset.i,v=el.value;
+try{if(i==='price')await updateDoc(D('menu',el.dataset.v),{p:Math.max(0,+v||0)});
+else if(i==='ship')await setDoc(D('settings','main'),{ship:Math.max(0,+v||0)},{merge:true});
+else if(i==='fee')await setDoc(D('settings','main'),{fees:{[el.dataset.v]:Math.min(100,Math.max(0,+v||0))}},{merge:true});
+else if(i==='name'&&v.trim())await setDoc(D('settings','main'),{name:v.trim()},{merge:true})}catch(x){alert('บันทึกไม่สำเร็จ: '+x.message)}});
+document.addEventListener('input',e=>{const el=e.target.closest('[data-i]');if(!el||!['phone','addr','note'].includes(el.dataset.i))return;S.d[el.dataset.i]=el.value;
+if(el.dataset.i==='phone'){const p=S.orders.find(o=>o.phone&&o.phone===el.value&&o.addr),h=document.getElementById('hint');
+if(p){S.d.addr=p.addr;document.getElementById('ad').value=p.addr;h.textContent='ลูกค้าเก่า · เติมที่อยู่ล่าสุดให้แล้ว'}else h.textContent=''}});
+setInterval(()=>document.querySelectorAll('[data-t]').forEach(e=>e.textContent=mm(+e.dataset.t)),1000);
+R();
+</script>
+</body>
+</html>
