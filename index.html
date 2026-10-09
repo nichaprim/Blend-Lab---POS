@@ -6,8 +6,8 @@
 <title>Delivery POS</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap">
 <style>
-:root{--bg:#F3F5F4;--card:#fff;--ink:#14211C;--mut:#4F5F58;--line:#DCE3DF;--pri:#0B6B52;--onpri:#fff;--w:#8A4B08;--wb:#FDEFD9;--i:#14518A;--ib:#E3EEF9;--o:#0B6B52;--ob:#E4F3EC;--track:#E4EAE7;--err:#B3261E;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media(prefers-color-scheme:dark){:root{--bg:#0E1512;--card:#17211D;--ink:#EAF1ED;--mut:#A3B3AB;--line:#2A3832;--pri:#3FB38E;--onpri:#06251B;--w:#F2B66B;--wb:#3A2A12;--i:#8CC1F2;--ib:#16283A;--o:#6FD4B0;--ob:#12302A;--track:#26332D;--err:#F2B8B5}}
+:root{--bg:#F3F5F4;--card:#fff;--ink:#14211C;--mut:#4F5F58;--line:#DCE3DF;--pri:#0B6B52;--onpri:#fff;--w:#8A4B08;--wb:#FDEFD9;--i:#14518A;--ib:#E3EEF9;--o:#0B6B52;--ob:#E4F3EC;--track:#E4EAE7;--err:#B3261E;--pp:#6B3FA0;--ppb:#EFE6F8;--rd:#9C2A22;--rdb:#FBE3E1;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1512;--card:#17211D;--ink:#EAF1ED;--mut:#A3B3AB;--line:#2A3832;--pri:#3FB38E;--onpri:#06251B;--w:#F2B66B;--wb:#3A2A12;--i:#8CC1F2;--ib:#16283A;--o:#6FD4B0;--ob:#12302A;--track:#26332D;--err:#F2B8B5;--pp:#C9A8F2;--ppb:#2B1D3D;--rd:#F2B8B5;--rdb:#3D1B19}}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',system-ui,sans-serif;font-size:14px}
 #app{max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column}
@@ -45,14 +45,14 @@ import{getFirestore,collection,doc,addDoc,setDoc,updateDoc,deleteDoc,onSnapshot,
 const firebaseConfig={apiKey:"AIzaSyAGBz1hM_6WVjnfZL2O7Z8WCGCrG7b-5aQ",authDomain:"blend-lab-pos.firebaseapp.com",projectId:"blend-lab-pos",appId:"1:77199696681:web:529113fe0a318aa4fe0d38"};
 // ======================================================================================
 
-const CH={line:'LINE MAN',grab:'Grab',direct:'โทร / LINE ร้าน'},CC={line:['--wb','--w'],grab:['--ob','--o'],direct:['--ib','--i']};
+const CH={grab:'Grab',line:'LINE MAN',shopee:'Shopee',robin:'Robinhood',direct:'โทรสั่ง / LINE'},CC={grab:['--ob','--o'],line:['--wb','--w'],shopee:['--rdb','--rd'],robin:['--ppb','--pp'],direct:['--ib','--i']};
 const ST={new:'ใหม่',cook:'กำลังทำ',ready:'รอไรเดอร์',done:'เสร็จแล้ว',cancel:'ยกเลิก'},NX={new:['cook','รับออเดอร์'],cook:['ready','พร้อมส่ง'],ready:['done','ไรเดอร์รับแล้ว']};
 const PER={today:'วันนี้',month:'เดือนนี้',last:'เดือนที่แล้ว'};
 const E=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),B=n=>'฿'+Math.round(n).toLocaleString('th-TH');
 const food=o=>o.items.reduce((s,i)=>s+i.q*i.p,0),tot=o=>food(o)+o.ship,comm=o=>food(o)*(o.fee||0)/100;
 const mm=t=>{const s=Math.max(0,Math.floor((Date.now()-t)/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
 const rng=p=>{const n=new Date(),y=n.getFullYear(),m=n.getMonth();return p==='today'?[new Date(y,m,n.getDate()).getTime(),Infinity]:p==='month'?[new Date(y,m,1).getTime(),Infinity]:[new Date(y,m-1,1).getTime(),new Date(y,m,1).getTime()]};
-const S={tab:'orders',f:'new',per:'today',user:null,ready:false,err:'',orders:[],menu:[],tops:[],sheet:null,set:{name:'ร้านของฉัน',open:true,ship:25,sweet:['หวานมาก','หวานปกติ','หวานน้อย','ไม่หวาน'],fees:{line:30,grab:30}},d:{ch:'direct',phone:'',addr:'',note:'',cart:[]}};
+const S={tab:'orders',f:'new',per:'today',user:null,ready:false,err:'',orders:[],menu:[],tops:[],sheet:null,set:{name:'ร้านของฉัน',open:true,ship:25,sweet:['หวานมาก','หวานปกติ','หวานน้อย','ไม่หวาน'],fees:{grab:30,line:30,shopee:30,robin:30}},d:{ch:'direct',phone:'',addr:'',note:'',cart:[]}};
 const ok=!firebaseConfig.apiKey.startsWith('วาง');
 let fb={},unsubs=[],pending=0;
 if(ok){const app=initializeApp(firebaseConfig);fb.auth=getAuth(app);fb.db=getFirestore(app)}
@@ -63,15 +63,15 @@ login(){return `<main><div class="card"><h2>เข้าสู่ระบบร
 orders(){const t0=rng('today')[0],L=S.orders.filter(o=>o.st===S.f&&(S.f!=='done'||o.t>=t0)).sort((a,b)=>S.f==='done'?b.t-a.t:a.t-b.t);
 return `<div class="tabs">${['new','cook','ready','done'].map(k=>`<button class="pill ${S.f===k?'on':''}" data-a="f" data-v="${k}">${ST[k]} ${S.orders.filter(o=>o.st===k&&(k!=='done'||o.t>=t0)).length}</button>`).join('')}</div>`+
 (L.length?L.map(o=>`<div class="card"><div class="row"><b style="font-size:16px">#A${o.no} · <span data-t="${o.t}">${mm(o.t)}</span></b><span class="chip" style="background:var(${CC[o.ch][0]});color:var(${CC[o.ch][1]})">${CH[o.ch]}</span></div>
-${o.items.map(i=>`<div><b>${E(i.n)} ×${i.q}</b>${i.sweet?` · ${E(i.sweet)}`:''}${i.tops?.length?`<div class="mut">+ ${i.tops.map(t=>E(t.n)).join(', ')}</div>`:''}${i.note?`<div class="mut">โน้ต: ${E(i.note)}</div>`:''}</div>`).join('')}${o.note?`<div class="mut">หมายเหตุ: ${E(o.note)}</div>`:''}${o.addr?`<div class="mut">ส่งที่: ${E(o.addr)}${o.phone?' · '+E(o.phone):''}</div>`:''}
+${o.items.map(i=>`<div><b>${E(i.n)} ×${i.q}</b>${i.sweet?` · ${E(i.sweet)}`:''}${i.ice?` · ${E(i.ice)}`:''}${i.tops?.length?`<div class="mut">+ ${i.tops.map(t=>E(t.n)).join(', ')}</div>`:''}${i.note?`<div class="mut">โน้ต: ${E(i.note)}</div>`:''}</div>`).join('')}${o.note?`<div class="mut">หมายเหตุ: ${E(o.note)}</div>`:''}${o.addr?`<div class="mut">ส่งที่: ${E(o.addr)}${o.phone?' · '+E(o.phone):''}</div>`:''}
 <div class="row"><b>${B(tot(o))}${o.ship?` <span class="mut">(รวมส่ง ${B(o.ship)})</span>`:''}</b><span style="display:flex;gap:8px">${o.st==='new'?`<button class="b2" data-a="cancel" data-v="${o.id}">ยกเลิก</button>`:''}${NX[o.st]?`<button class="b" data-a="st" data-v="${o.id}">${NX[o.st][1]}</button>`:''}</span></div></div>`).join(''):`<div class="card mut">ไม่มีออเดอร์ในสถานะนี้</div>`)},
 new(){const d=S.d,ship=d.ch==='direct'?S.set.ship:0,fd=d.cart.reduce((a,l)=>a+l.p*l.q,0),cnt={};d.cart.forEach(l=>cnt[l.mid]=(cnt[l.mid]||0)+l.q);
-return `<div class="tabs">${Object.keys(CH).map(k=>`<button class="pill ${d.ch===k?'on':''}" data-a="ch" data-v="${k}">${CH[k]}</button>`).join('')}</div>
+return `<label>ช่องทางออเดอร์</label><div class="tabs" style="flex-wrap:wrap">${Object.keys(CH).map(k=>`<button class="pill ${d.ch===k?'on':''}" data-a="ch" data-v="${k}">${CH[k]}</button>`).join('')}</div>
 <label for="ph">เบอร์ลูกค้า</label><input id="ph" class="in" inputmode="tel" data-i="phone" value="${E(d.phone)}"><div id="hint" class="mut"></div>
 <label for="ad">ที่อยู่</label><input id="ad" class="in" data-i="addr" value="${E(d.addr)}"><input class="in" aria-label="หมายเหตุออเดอร์" placeholder="หมายเหตุทั้งออเดอร์" data-i="note" value="${E(d.note)}">
 ${S.menu.length?'':'<div class="card mut">ยังไม่มีเมนู เพิ่มได้ที่แท็บ "เมนู"</div>'}
 <div class="grid">${S.menu.map(m=>{const q=cnt[m.id]||0;return `<button class="item ${q?'on':''}" data-a="inc" data-v="${m.id}" ${m.a?'':'disabled'}><b>${E(m.n)}</b><span class="mut">${B(m.p)}${m.a?(m.opt?' · เลือกได้':''):' · หมด'}</span><span style="color:var(--pri);font-weight:800">${q?'×'+q:'+ เพิ่ม'}</span></button>`}).join('')}</div>
-${d.cart.length?`<div class="card"><h2>รายการที่สั่ง</h2>${d.cart.map((l,k)=>`<div class="row"><div>${E(l.n)}${l.sweet?` · ${E(l.sweet)}`:''}${l.tops.length?`<div class="mut">+ ${l.tops.map(t=>E(t.n)).join(', ')}</div>`:''}${l.note?`<div class="mut">โน้ต: ${E(l.note)}</div>`:''}<div class="mut">${B(l.p)} ต่อรายการ</div></div><span style="display:flex;align-items:center;gap:6px"><button class="b2" style="padding:0 14px" data-a="qm" data-v="${k}" aria-label="ลด">−</button><b>${l.q}</b><button class="b2" style="padding:0 14px" data-a="qp" data-v="${k}" aria-label="เพิ่ม">+</button></span></div>`).join('')}</div>`:''}
+${d.cart.length?`<div class="card"><h2>รายการที่สั่ง</h2>${d.cart.map((l,k)=>`<div class="row"><div>${E(l.n)}${l.sweet?` · ${E(l.sweet)}`:''}${l.ice?` · ${E(l.ice)}`:''}${l.tops.length?`<div class="mut">+ ${l.tops.map(t=>E(t.n)).join(', ')}</div>`:''}${l.note?`<div class="mut">โน้ต: ${E(l.note)}</div>`:''}<div class="mut">${B(l.p)} ต่อรายการ</div></div><span style="display:flex;align-items:center;gap:6px"><button class="b2" style="padding:0 14px" data-a="qm" data-v="${k}" aria-label="ลด">−</button><b>${l.q}</b><button class="b2" style="padding:0 14px" data-a="qp" data-v="${k}" aria-label="เพิ่ม">+</button></span></div>`).join('')}</div>`:''}
 <div class="card"><div class="row"><span>อาหาร ${B(fd)} · ค่าส่ง ${B(ship)}</span><b style="font-size:18px">${B(fd+ship)}</b></div><button class="b" data-a="submit" ${d.cart.length?'':'disabled'}>ยืนยันและส่งเข้าครัว</button></div>`},
 menu(){return S.menu.map(m=>`<div class="card"><div class="row"><input class="in" aria-label="ชื่อเมนู" data-i="mname" data-v="${m.id}" value="${E(m.n)}"><button class="pill ${m.a?'on':''}" data-a="tog" data-v="${m.id}" aria-pressed="${!!m.a}">${m.a?'มีขาย':'หมด'}</button></div>
 <div class="row"><label for="p${m.id}">ราคาขาย (฿)</label><input id="p${m.id}" class="in" style="width:110px" type="number" min="0" data-i="price" data-v="${m.id}" value="${m.p}"></div>
@@ -79,7 +79,7 @@ menu(){return S.menu.map(m=>`<div class="card"><div class="row"><input class="in
 <div class="row"><span class="mut">ตัวเลือกความหวาน/ท็อปปิ้ง</span><button class="pill ${m.opt?'on':''}" data-a="topt" data-v="${m.id}" aria-pressed="${!!m.opt}">${m.opt?'เปิด':'ปิด'}</button></div>
 <div class="row"><span class="mut">${m.c!=null?`กำไรต่อจาน ${B(m.p-m.c)} (${m.p?Math.round((m.p-m.c)/m.p*100):0}%)`:'ใส่ต้นทุนเพื่อดูกำไรต่อจาน'}</span><button class="b2" data-a="del" data-v="${m.id}" aria-label="ลบ ${E(m.n)}">ลบ</button></div></div>`).join('')+
 `<div class="card"><h2>เพิ่มเมนู</h2><input id="nn" class="in" placeholder="ชื่อเมนู" aria-label="ชื่อเมนู"><input id="np" class="in" type="number" min="0" placeholder="ราคาขาย" aria-label="ราคาขาย"><input id="nc" class="in" type="number" min="0" placeholder="ต้นทุนวัตถุดิบ (ไม่บังคับ)" aria-label="ต้นทุนวัตถุดิบ"><button class="b" data-a="add">เพิ่มเมนู</button></div>`+TPV()},
-sum(){const[a,z]=rng(S.per),O=S.orders.filter(o=>o.t>=a&&o.t<z&&o.st!=='cancel'),by={line:0,grab:0,direct:0},mn={},day={};let net=0,cm=0,cost=0,miss=0;
+sum(){const[a,z]=rng(S.per),O=S.orders.filter(o=>o.t>=a&&o.t<z&&o.st!=='cancel'),by=Object.fromEntries(Object.keys(CH).map(k=>[k,0])),mn={},day={};let net=0,cm=0,cost=0,miss=0;
 O.forEach(o=>{const c=comm(o),n=tot(o)-c;net+=n;cm+=c;o.items.forEach(i=>{if(i.c!=null)cost+=i.q*i.c;else miss=1});by[o.ch]+=n;o.items.forEach(i=>mn[i.n]=(mn[i.n]||0)+i.q);const k=new Date(o.t).toLocaleDateString('th-TH');(day[k]=day[k]||{n:0,s:0,t:o.t});day[k].n++;day[k].s+=n});
 const top=Object.entries(mn).sort((x,y)=>y[1]-x[1]).slice(0,5),days=Object.entries(day).sort((x,y)=>y[1].t-x[1].t);
 return `<div class="tabs">${Object.keys(PER).map(k=>`<button class="pill ${S.per===k?'on':''}" data-a="per" data-v="${k}">${PER[k]}</button>`).join('')}</div>
@@ -89,16 +89,17 @@ return `<div class="tabs">${Object.keys(PER).map(k=>`<button class="pill ${S.per
 ${S.per!=='today'?`<div class="card"><h2>สรุปรายวัน</h2>${days.map(([k,v])=>`<div class="row"><span>${k} · ${v.n} ออเดอร์</span><b>${B(v.s)}</b></div>`).join('')||'<span class="mut">ยังไม่มีข้อมูล</span>'}</div>`:''}
 <button class="b2" data-a="csv" ${O.length?'':'disabled'}>ดาวน์โหลดรายงาน CSV (${PER[S.per]})</button>`},
 set(){return `<div class="card"><label for="sn">ชื่อร้าน</label><input id="sn" class="in" data-i="name" value="${E(S.set.name)}"><label for="sf">ค่าส่งที่ร้านเก็บเอง (฿)</label><input id="sf" class="in" type="number" min="0" data-i="ship" value="${S.set.ship}"><label for="swl">ระดับความหวาน (คั่นด้วยเครื่องหมาย ,)</label><input id="swl" class="in" data-i="sweet" value="${E(S.set.sweet.join(', '))}"></div>
-<div class="card"><h2>ค่าคอมมิชชัน (%)</h2>${['line','grab'].map(k=>`<div class="row"><label for="f${k}">${CH[k]}</label><input id="f${k}" class="in" style="width:100px" type="number" min="0" max="100" data-i="fee" data-v="${k}" value="${S.set.fees[k]}"></div>`).join('')}<span class="mut">ใส่ตามสัญญาจริง คิดจากค่าอาหารเท่านั้น ออเดอร์เก่าใช้อัตราเดิมที่บันทึกไว้ตอนสั่ง</span></div>
+<div class="card"><h2>ค่าคอมมิชชัน (%)</h2>${['grab','line','shopee','robin'].map(k=>`<div class="row"><label for="f${k}">${CH[k]}</label><input id="f${k}" class="in" style="width:100px" type="number" min="0" max="100" data-i="fee" data-v="${k}" value="${S.set.fees[k]}"></div>`).join('')}<span class="mut">ใส่ตามสัญญาจริง คิดจากค่าอาหารเท่านั้น ออเดอร์เก่าใช้อัตราเดิมที่บันทึกไว้ตอนสั่ง</span></div>
 <div class="card mut">เข้าสู่ระบบเป็น ${E(S.user?.email||'')}</div><button class="b2" data-a="logout">ออกจากระบบ</button>`}};
 const TPV=()=>`<h2 style="margin-top:8px">ท็อปปิ้ง</h2>`+S.tops.map(t=>`<div class="card"><div class="row"><input class="in" aria-label="ชื่อท็อปปิ้ง" data-i="tname" data-v="${t.id}" value="${E(t.n)}"><button class="pill ${t.a?'on':''}" data-a="ttog" data-v="${t.id}" aria-pressed="${!!t.a}">${t.a?'มีขาย':'หมด'}</button></div><div class="row"><label for="tp${t.id}">ราคาเพิ่ม (฿)</label><input id="tp${t.id}" class="in" style="width:110px" type="number" min="0" data-i="tprice" data-v="${t.id}" value="${t.p}"></div><div class="row"><label for="tc${t.id}">ต้นทุน (฿)</label><input id="tc${t.id}" class="in" style="width:110px" type="number" min="0" data-i="tcost" data-v="${t.id}" value="${t.c??''}" placeholder="ไม่ระบุ"></div><button class="b2" data-a="tdel" data-v="${t.id}" aria-label="ลบ ${E(t.n)}">ลบ</button></div>`).join('')+`<div class="card"><h2>เพิ่มท็อปปิ้ง</h2><input id="tn" class="in" placeholder="ชื่อท็อปปิ้ง" aria-label="ชื่อท็อปปิ้ง"><input id="tpp" class="in" type="number" min="0" placeholder="ราคาเพิ่ม" aria-label="ราคาเพิ่ม"><input id="tcc" class="in" type="number" min="0" placeholder="ต้นทุน (ไม่บังคับ)" aria-label="ต้นทุน"><button class="b" data-a="tadd">เพิ่มท็อปปิ้ง</button></div>`;
 const SH=()=>{const s=S.sheet;if(!s)return'';const m=S.menu.find(x=>x.id===s.mid);if(!m)return'';const tp=S.tops.filter(t=>t.a||s.tops[t.id]),sel=S.tops.filter(t=>s.tops[t.id]),u=m.p+sel.reduce((a,t)=>a+t.p,0);
 return `<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:10"><div role="dialog" aria-label="ตัวเลือก ${E(m.n)}" style="background:var(--card);width:100%;max-width:480px;max-height:85%;overflow-y:auto;box-sizing:border-box;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px"><div class="row"><h2>${E(m.n)} · ${B(m.p)}</h2><button class="b2" data-a="sx">ปิด</button></div>
 ${S.set.sweet.length?`<label>ความหวาน</label><div class="tabs" style="flex-wrap:wrap">${S.set.sweet.map((w,k)=>`<button class="pill ${s.sweet===w?'on':''}" data-a="sw" data-v="${k}" aria-pressed="${s.sweet===w}">${E(w)}</button>`).join('')}</div>`:''}
+<label>น้ำแข็ง</label><div class="tabs" style="flex-wrap:wrap">${['ไม่แยกน้ำแข็ง','แยกน้ำแข็ง'].map(w=>`<button class="pill ${s.ice===w?'on':''}" data-a="ic" data-v="${w}" aria-pressed="${s.ice===w}">${w}</button>`).join('')}</div>
 ${tp.length?`<label>ท็อปปิ้ง (เลือกได้หลายอย่าง)</label><div class="tabs" style="flex-wrap:wrap">${tp.map(t=>`<button class="pill ${s.tops[t.id]?'on':''}" data-a="tp" data-v="${t.id}" aria-pressed="${!!s.tops[t.id]}">${E(t.n)} +${B(t.p)}</button>`).join('')}</div>`:''}
 <label for="sn2">โน้ตเพิ่มเติม</label><input id="sn2" class="in" data-i="snote" placeholder="เช่น แยกน้ำแข็ง" value="${E(s.note)}">
 <div class="row"><span style="display:flex;align-items:center;gap:6px"><button class="b2" style="padding:0 14px" data-a="sq" data-v="-1" aria-label="ลด">−</button><b>${s.q}</b><button class="b2" style="padding:0 14px" data-a="sq" data-v="1" aria-label="เพิ่ม">+</button></span><button class="b" data-a="sadd">เพิ่มลงออเดอร์ ${B(u*s.q)}</button></div></div></div>`};
-function addLine(l){const k=x=>[x.mid,x.sweet,x.tops.map(t=>t.n).join('+'),x.note].join('|'),e=S.d.cart.find(x=>k(x)===k(l));if(e)e.q+=l.q;else S.d.cart.push(l)}
+function addLine(l){const k=x=>[x.mid,x.sweet,x.ice,x.tops.map(t=>t.n).join('+'),x.note].join('|'),e=S.d.cart.find(x=>k(x)===k(l));if(e)e.q+=l.q;else S.d.cart.push(l)}
 const TT={orders:'ออเดอร์',new:'ออเดอร์ใหม่',menu:'เมนู',sum:'สรุปยอด',set:'ตั้งค่า'};
 function R(){const t=S.tab,app=document.getElementById('app');
 if(!ok){app.innerHTML=`<main><div class="card"><h2>ยังไม่ได้ตั้งค่า Firebase</h2><span class="mut">เปิดไฟล์ index.html แล้ววางค่า firebaseConfig ตามขั้นตอนในคู่มือ</span></div></main>`;return}
@@ -121,12 +122,13 @@ try{
 if(a==='login'){S.err='';el.disabled=true;try{await signInWithEmailAndPassword(fb.auth,document.getElementById('em').value.trim(),document.getElementById('pw').value)}catch(x){S.err='อีเมลหรือรหัสผ่านไม่ถูกต้อง';R()}return}
 if(a==='logout'){await signOut(fb.auth);return}
 if(a==='tab')S.tab=v;else if(a==='f')S.f=v;else if(a==='per')S.per=v;else if(a==='newo')S.tab='new';
-else if(a==='ch')d.ch=v;else if(a==='inc'){const m=S.menu.find(x=>x.id===v);if(m.opt)S.sheet={mid:v,sweet:S.set.sweet.includes('หวานปกติ')?'หวานปกติ':(S.set.sweet[0]||''),tops:{},note:'',q:1};else addLine({mid:v,n:m.n,p:m.p,c:m.c??null,q:1,sweet:'',tops:[],note:''})}
+else if(a==='ch')d.ch=v;else if(a==='inc'){const m=S.menu.find(x=>x.id===v);if(m.opt)S.sheet={mid:v,sweet:S.set.sweet.includes('หวานปกติ')?'หวานปกติ':(S.set.sweet[0]||''),tops:{},ice:'ไม่แยกน้ำแข็ง',note:'',q:1};else addLine({mid:v,n:m.n,p:m.p,c:m.c??null,q:1,sweet:'',ice:'',tops:[],note:''})}
 else if(a==='sx')S.sheet=null;
 else if(a==='sw')S.sheet.sweet=S.set.sweet[+v];
+else if(a==='ic')S.sheet.ice=v;
 else if(a==='tp')S.sheet.tops[v]=!S.sheet.tops[v];
 else if(a==='sq')S.sheet.q=Math.max(1,S.sheet.q+ +v);
-else if(a==='sadd'){const sh=S.sheet,m=S.menu.find(x=>x.id===sh.mid),sel=S.tops.filter(t=>sh.tops[t.id]);addLine({mid:m.id,n:m.n,p:m.p+sel.reduce((x,t)=>x+t.p,0),c:m.c==null?null:m.c+sel.reduce((x,t)=>x+(t.c||0),0),q:sh.q,sweet:sh.sweet,tops:sel.map(t=>({n:t.n,p:t.p})),note:sh.note.trim()});S.sheet=null}
+else if(a==='sadd'){const sh=S.sheet,m=S.menu.find(x=>x.id===sh.mid),sel=S.tops.filter(t=>sh.tops[t.id]);addLine({mid:m.id,n:m.n,p:m.p+sel.reduce((x,t)=>x+t.p,0),c:m.c==null?null:m.c+sel.reduce((x,t)=>x+(t.c||0),0),q:sh.q,sweet:sh.sweet,ice:sh.ice,tops:sel.map(t=>({n:t.n,p:t.p})),note:sh.note.trim()});S.sheet=null}
 else if(a==='qm'){const l=d.cart[+v];l.q--;if(l.q<=0)d.cart.splice(+v,1)}
 else if(a==='qp')d.cart[+v].q++;
 else if(a==='open')await setDoc(D('settings','main'),{open:!S.set.open},{merge:true});
@@ -139,12 +141,12 @@ else if(a==='tadd'){const n=document.getElementById('tn').value.trim(),p=+docume
 else if(a==='add'){const n=document.getElementById('nn').value.trim(),p=+document.getElementById('np').value,cv=document.getElementById('nc').value;if(!n||!(p>=0))return;await addDoc(collection(fb.db,'menu'),{n,p,c:cv===''?null:Math.max(0,+cv||0),a:1,o:Date.now()})}
 else if(a==='st')await updateDoc(D('orders',v),{st:NX[S.orders.find(x=>x.id===v).st][0]});
 else if(a==='cancel'){if(confirm('ยกเลิกออเดอร์นี้?'))await updateDoc(D('orders',v),{st:'cancel'})}
-else if(a==='submit'){const items=d.cart.map(l=>({n:l.n,q:l.q,p:l.p,c:l.c,sweet:l.sweet||null,tops:l.tops,note:l.note||''}));if(!items.length)return;el.disabled=true;
+else if(a==='submit'){const items=d.cart.map(l=>({n:l.n,q:l.q,p:l.p,c:l.c,sweet:l.sweet||null,ice:l.ice||null,tops:l.tops,note:l.note||''}));if(!items.length)return;el.disabled=true;
 const no=S.orders.reduce((m,o)=>Math.max(m,o.no||0),100)+1;
-await addDoc(collection(fb.db,'orders'),{no,ch:d.ch,items,note:d.note,phone:d.phone,addr:d.addr,ship:d.ch==='direct'?S.set.ship:0,fee:d.ch==='direct'?0:S.set.fees[d.ch],st:'new',t:Date.now()});
+await addDoc(collection(fb.db,'orders'),{no,ch:d.ch,items,note:d.note,phone:d.phone,addr:d.addr,ship:d.ch==='direct'?S.set.ship:0,fee:d.ch==='direct'?0:(S.set.fees[d.ch]||0),st:'new',t:Date.now()});
 S.d={ch:'direct',phone:'',addr:'',note:'',cart:[]};S.tab='orders';S.f='new'}
 else if(a==='csv'){const[x,z]=rng(S.per),rows=[['เลขที่','เวลา','ช่องทาง','รายการ','ค่าอาหาร','ค่าส่ง','ค่าคอมฯ','สุทธิ','ต้นทุนวัตถุดิบ','กำไรขั้นต้น','สถานะ']];
-S.orders.filter(o=>o.t>=x&&o.t<z).sort((p,q)=>p.t-q.t).forEach(o=>{const c=comm(o),oc=o.items.reduce((s,i)=>s+(i.c!=null?i.q*i.c:0),0);rows.push(['A'+o.no,new Date(o.t).toLocaleString('th-TH'),CH[o.ch],o.items.map(i=>i.n+(i.sweet?' ('+i.sweet+')':'')+(i.tops?.length?' +'+i.tops.map(t=>t.n).join('+'):'')+(i.note?' ['+i.note+']':'')+' x'+i.q).join(' / '),food(o),o.ship,c,tot(o)-c,oc,tot(o)-c-oc,ST[o.st]])});
+S.orders.filter(o=>o.t>=x&&o.t<z).sort((p,q)=>p.t-q.t).forEach(o=>{const c=comm(o),oc=o.items.reduce((s,i)=>s+(i.c!=null?i.q*i.c:0),0);rows.push(['A'+o.no,new Date(o.t).toLocaleString('th-TH'),CH[o.ch],o.items.map(i=>i.n+(i.sweet?' ('+i.sweet+')':'')+(i.ice?' ['+i.ice+']':'')+(i.tops?.length?' +'+i.tops.map(t=>t.n).join('+'):'')+(i.note?' ['+i.note+']':'')+' x'+i.q).join(' / '),food(o),o.ship,c,tot(o)-c,oc,tot(o)-c-oc,ST[o.st]])});
 const csv='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'),l=document.createElement('a');
 l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));l.download='report-'+S.per+'.csv';l.click();return}
 }catch(x){alert('บันทึกไม่สำเร็จ: '+x.message)}
