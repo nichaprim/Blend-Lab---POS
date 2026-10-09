@@ -73,13 +73,16 @@ ${S.menu.length?'':'<div class="card mut">ยังไม่มีเมนู �
 <div class="grid">${S.menu.map(m=>{const q=d.cart[m.id]||0;return `<button class="item ${q?'on':''}" data-a="inc" data-v="${m.id}" ${m.a?'':'disabled'}><b>${E(m.n)}</b><span class="mut">${B(m.p)}${m.a?'':' · หมด'}</span><span style="color:var(--pri);font-weight:800">${q?'×'+q:'+ เพิ่ม'}</span></button>`}).join('')}</div>
 ${items.length?`<button class="b2" data-a="dec">ลบรายการล่าสุด</button>`:''}
 <div class="card"><div class="row"><span>อาหาร ${B(fd)} · ค่าส่ง ${B(ship)}</span><b style="font-size:18px">${B(fd+ship)}</b></div><button class="b" data-a="submit" ${items.length?'':'disabled'}>ยืนยันและส่งเข้าครัว</button></div>`},
-menu(){return S.menu.map(m=>`<div class="card"><div class="row"><b>${E(m.n)}</b><button class="pill ${m.a?'on':''}" data-a="tog" data-v="${m.id}" aria-pressed="${!!m.a}">${m.a?'มีขาย':'หมด'}</button></div><div class="row"><label for="p${m.id}">ราคา (฿)</label><input id="p${m.id}" class="in" style="width:110px" type="number" min="0" data-i="price" data-v="${m.id}" value="${m.p}"><button class="b2" data-a="del" data-v="${m.id}" aria-label="ลบ ${E(m.n)}">ลบ</button></div></div>`).join('')+
-`<div class="card"><h2>เพิ่มเมนู</h2><input id="nn" class="in" placeholder="ชื่อเมนู" aria-label="ชื่อเมนู"><input id="np" class="in" type="number" min="0" placeholder="ราคา" aria-label="ราคา"><button class="b" data-a="add">เพิ่มเมนู</button></div>`},
-sum(){const[a,z]=rng(S.per),O=S.orders.filter(o=>o.t>=a&&o.t<z&&o.st!=='cancel'),by={line:0,grab:0,direct:0},mn={},day={};let net=0,cm=0;
-O.forEach(o=>{const c=comm(o),n=tot(o)-c;net+=n;cm+=c;by[o.ch]+=n;o.items.forEach(i=>mn[i.n]=(mn[i.n]||0)+i.q);const k=new Date(o.t).toLocaleDateString('th-TH');(day[k]=day[k]||{n:0,s:0,t:o.t});day[k].n++;day[k].s+=n});
+menu(){return S.menu.map(m=>`<div class="card"><div class="row"><input class="in" aria-label="ชื่อเมนู" data-i="mname" data-v="${m.id}" value="${E(m.n)}"><button class="pill ${m.a?'on':''}" data-a="tog" data-v="${m.id}" aria-pressed="${!!m.a}">${m.a?'มีขาย':'หมด'}</button></div>
+<div class="row"><label for="p${m.id}">ราคาขาย (฿)</label><input id="p${m.id}" class="in" style="width:110px" type="number" min="0" data-i="price" data-v="${m.id}" value="${m.p}"></div>
+<div class="row"><label for="c${m.id}">ต้นทุนวัตถุดิบ (฿)</label><input id="c${m.id}" class="in" style="width:110px" type="number" min="0" data-i="cost" data-v="${m.id}" value="${m.c??''}" placeholder="ไม่ระบุ"></div>
+<div class="row"><span class="mut">${m.c!=null?`กำไรต่อจาน ${B(m.p-m.c)} (${m.p?Math.round((m.p-m.c)/m.p*100):0}%)`:'ใส่ต้นทุนเพื่อดูกำไรต่อจาน'}</span><button class="b2" data-a="del" data-v="${m.id}" aria-label="ลบ ${E(m.n)}">ลบ</button></div></div>`).join('')+
+`<div class="card"><h2>เพิ่มเมนู</h2><input id="nn" class="in" placeholder="ชื่อเมนู" aria-label="ชื่อเมนู"><input id="np" class="in" type="number" min="0" placeholder="ราคาขาย" aria-label="ราคาขาย"><input id="nc" class="in" type="number" min="0" placeholder="ต้นทุนวัตถุดิบ (ไม่บังคับ)" aria-label="ต้นทุนวัตถุดิบ"><button class="b" data-a="add">เพิ่มเมนู</button></div>`},
+sum(){const[a,z]=rng(S.per),O=S.orders.filter(o=>o.t>=a&&o.t<z&&o.st!=='cancel'),by={line:0,grab:0,direct:0},mn={},day={};let net=0,cm=0,cost=0,miss=0;
+O.forEach(o=>{const c=comm(o),n=tot(o)-c;net+=n;cm+=c;o.items.forEach(i=>{if(i.c!=null)cost+=i.q*i.c;else miss=1});by[o.ch]+=n;o.items.forEach(i=>mn[i.n]=(mn[i.n]||0)+i.q);const k=new Date(o.t).toLocaleDateString('th-TH');(day[k]=day[k]||{n:0,s:0,t:o.t});day[k].n++;day[k].s+=n});
 const top=Object.entries(mn).sort((x,y)=>y[1]-x[1]).slice(0,5),days=Object.entries(day).sort((x,y)=>y[1].t-x[1].t);
 return `<div class="tabs">${Object.keys(PER).map(k=>`<button class="pill ${S.per===k?'on':''}" data-a="per" data-v="${k}">${PER[k]}</button>`).join('')}</div>
-<div class="card" style="background:#14211C;color:#fff;border-color:#14211C"><span style="opacity:.8">ยอดสุทธิ${PER[S.per]} (ประมาณการ)</span><b style="font-size:32px">${B(net)}</b><span style="opacity:.8">${O.length} ออเดอร์ · ค่าคอมฯ ${B(cm)}</span></div>
+<div class="card" style="background:#14211C;color:#fff;border-color:#14211C"><span style="opacity:.8">ยอดสุทธิ${PER[S.per]} (ประมาณการ)</span><b style="font-size:32px">${B(net)}</b><span style="opacity:.8">${O.length} ออเดอร์ · ค่าคอมฯ ${B(cm)}</span><span style="opacity:.8">ต้นทุนวัตถุดิบ ${B(cost)} · กำไรขั้นต้น ${B(net-cost)}${net?` (${Math.round((net-cost)/net*100)}%)`:''}</span>${miss?'<span style="opacity:.8;font-size:12px">* บางรายการยังไม่มีต้นทุน กำไรจึงอาจสูงกว่าจริง</span>':''}</div>
 <div class="card"><h2>ตามช่องทาง</h2>${Object.keys(CH).map(k=>`<div>${CH[k]} · ${B(by[k])}<div class="bar"><i style="width:${net?by[k]/net*100:0}%"></i></div></div>`).join('')}</div>
 <div class="card"><h2>เมนูขายดี</h2>${top.length?top.map((t,i)=>`<span>${i+1}. ${E(t[0])} · ${t[1]}</span>`).join(''):'<span class="mut">ยังไม่มีข้อมูล</span>'}</div>
 ${S.per!=='today'?`<div class="card"><h2>สรุปรายวัน</h2>${days.map(([k,v])=>`<div class="row"><span>${k} · ${v.n} ออเดอร์</span><b>${B(v.s)}</b></div>`).join('')||'<span class="mut">ยังไม่มีข้อมูล</span>'}</div>`:''}
@@ -113,21 +116,23 @@ else if(a==='dec'){const k=Object.keys(d.cart).pop();if(k){d.cart[k]--;if(d.cart
 else if(a==='open')await setDoc(D('settings','main'),{open:!S.set.open},{merge:true});
 else if(a==='tog')await updateDoc(D('menu',v),{a:S.menu.find(x=>x.id===v).a?0:1});
 else if(a==='del'){if(confirm('ลบเมนูนี้?'))await deleteDoc(D('menu',v))}
-else if(a==='add'){const n=document.getElementById('nn').value.trim(),p=+document.getElementById('np').value;if(!n||!(p>=0))return;await addDoc(collection(fb.db,'menu'),{n,p,a:1,o:Date.now()})}
+else if(a==='add'){const n=document.getElementById('nn').value.trim(),p=+document.getElementById('np').value,cv=document.getElementById('nc').value;if(!n||!(p>=0))return;await addDoc(collection(fb.db,'menu'),{n,p,c:cv===''?null:Math.max(0,+cv||0),a:1,o:Date.now()})}
 else if(a==='st')await updateDoc(D('orders',v),{st:NX[S.orders.find(x=>x.id===v).st][0]});
 else if(a==='cancel'){if(confirm('ยกเลิกออเดอร์นี้?'))await updateDoc(D('orders',v),{st:'cancel'})}
-else if(a==='submit'){const items=S.menu.filter(m=>d.cart[m.id]).map(m=>({n:m.n,q:d.cart[m.id],p:m.p}));if(!items.length)return;el.disabled=true;
+else if(a==='submit'){const items=S.menu.filter(m=>d.cart[m.id]).map(m=>({n:m.n,q:d.cart[m.id],p:m.p,c:m.c??null}));if(!items.length)return;el.disabled=true;
 const no=S.orders.reduce((m,o)=>Math.max(m,o.no||0),100)+1;
 await addDoc(collection(fb.db,'orders'),{no,ch:d.ch,items,note:d.note,phone:d.phone,addr:d.addr,ship:d.ch==='direct'?S.set.ship:0,fee:d.ch==='direct'?0:S.set.fees[d.ch],st:'new',t:Date.now()});
 S.d={ch:'direct',phone:'',addr:'',note:'',cart:{}};S.tab='orders';S.f='new'}
-else if(a==='csv'){const[x,z]=rng(S.per),rows=[['เลขที่','เวลา','ช่องทาง','รายการ','ค่าอาหาร','ค่าส่ง','ค่าคอมฯ','สุทธิ','สถานะ']];
-S.orders.filter(o=>o.t>=x&&o.t<z).sort((p,q)=>p.t-q.t).forEach(o=>{const c=comm(o);rows.push(['A'+o.no,new Date(o.t).toLocaleString('th-TH'),CH[o.ch],o.items.map(i=>i.n+' x'+i.q).join(' / '),food(o),o.ship,c,tot(o)-c,ST[o.st]])});
+else if(a==='csv'){const[x,z]=rng(S.per),rows=[['เลขที่','เวลา','ช่องทาง','รายการ','ค่าอาหาร','ค่าส่ง','ค่าคอมฯ','สุทธิ','ต้นทุนวัตถุดิบ','กำไรขั้นต้น','สถานะ']];
+S.orders.filter(o=>o.t>=x&&o.t<z).sort((p,q)=>p.t-q.t).forEach(o=>{const c=comm(o),oc=o.items.reduce((s,i)=>s+(i.c!=null?i.q*i.c:0),0);rows.push(['A'+o.no,new Date(o.t).toLocaleString('th-TH'),CH[o.ch],o.items.map(i=>i.n+' x'+i.q).join(' / '),food(o),o.ship,c,tot(o)-c,oc,tot(o)-c-oc,ST[o.st]])});
 const csv='\ufeff'+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n'),l=document.createElement('a');
 l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));l.download='report-'+S.per+'.csv';l.click();return}
 }catch(x){alert('บันทึกไม่สำเร็จ: '+x.message)}
 R()});
 document.addEventListener('change',async e=>{const el=e.target.closest('[data-i]');if(!el)return;const i=el.dataset.i,v=el.value;
 try{if(i==='price')await updateDoc(D('menu',el.dataset.v),{p:Math.max(0,+v||0)});
+else if(i==='cost')await updateDoc(D('menu',el.dataset.v),{c:v===''?null:Math.max(0,+v||0)});
+else if(i==='mname'){if(v.trim())await updateDoc(D('menu',el.dataset.v),{n:v.trim()})}
 else if(i==='ship')await setDoc(D('settings','main'),{ship:Math.max(0,+v||0)},{merge:true});
 else if(i==='fee')await setDoc(D('settings','main'),{fees:{[el.dataset.v]:Math.min(100,Math.max(0,+v||0))}},{merge:true});
 else if(i==='name'&&v.trim())await setDoc(D('settings','main'),{name:v.trim()},{merge:true})}catch(x){alert('บันทึกไม่สำเร็จ: '+x.message)}});
